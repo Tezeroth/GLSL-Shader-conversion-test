@@ -3,111 +3,183 @@
 <head>
   <meta charset="UTF-8" />
   <title>Seamless 3D Clouds Skybox - No Seams</title>
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; }
   </style>
 </head>
 <body>
+
 <script>
-  AFRAME.registerShader('seamless-clouds-3d', {
+  AFRAME.registerShader('simple-cloud', {
     schema: {
-      time: { type: 'time', is: 'uniform' }
+      time: {type: 'time', is: 'uniform'}
     },
     vertexShader: `
-      varying vec3 vWorldDirection;
+      uniform float time;
+      varying vec2 vUv;
+      varying float vNoise;
+
+      //
+      // Description : Array and textureless GLSL 2D/3D/4D simplex
+      // noise functions.
+      // Author : Ian McEwan, Ashima Arts.
+      // Maintainer : ijm
+      // Lastmod : 20110822 (ijm)
+      // License : Copyright (C) 2011 Ashima Arts. All rights reserved.
+      // Distributed under the MIT License.
+      // https://github.com/ashima/webgl-noise
+      //
+
+      vec3 mod289(vec3 x) {
+        return x - floor(x * (1.0 / 289.0)) * 289.0;
+      }
+
+      vec4 mod289(vec4 x) {
+        return x - floor(x * (1.0 / 289.0)) * 289.0;
+      }
+
+      vec4 permute(vec4 x) {
+        return mod289(((x*34.0)+1.0)*x);
+      }
+
+      vec4 taylorInvSqrt(vec4 r) {
+        return 1.79284291400159 - 0.85373472095314 * r;
+      }
+
+      float snoise(vec3 v) {
+        const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+        const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+
+        // First corner
+        vec3 i  = floor(v + dot(v, C.yyy) );
+        vec3 x0 =   v - i + dot(i, C.xxx) ;
+
+        // Other corners
+        vec3 g = step(x0.yzx, x0.xyz);
+        vec3 l = 1.0 - g;
+        vec3 i1 = min( g.xyz, l.zxy );
+        vec3 i2 = max( g.xyz, l.zxy );
+
+        vec3 x1 = x0 - i1 + C.xxx;
+        vec3 x2 = x0 - i2 + C.yyy;
+        vec3 x3 = x0 - D.yyy;
+
+        // Permutations
+        i = mod289(i);
+        vec4 p = permute( permute( permute(
+                 i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+               + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
+               + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+
+        // Gradients: 7x7 points over a square, mapped onto an octahedron.
+        // The ring size 17*17 = 289 is close to a multiple of 49 (49*6 = 294)
+        float n_ = 0.142857142857; // 1.0/7.0
+        vec3  ns = n_ * D.wyz - D.xzx;
+
+        vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+        vec4 x_ = floor(j * ns.z);
+        vec4 y_ = floor(j - 7.0 * x_ );
+
+        vec4 x = x_ *ns.x + ns.yyyy;
+        vec4 y = y_ *ns.x + ns.yyyy;
+        vec4 h = 1.0 - abs(x) - abs(y);
+
+        vec4 b0 = vec4( x.xy, y.xy );
+        vec4 b1 = vec4( x.zw, y.zw );
+
+        vec4 s0 = floor(b0)*2.0 + 1.0;
+        vec4 s1 = floor(b1)*2.0 + 1.0;
+        vec4 sh = -step(h, vec4(0.0));
+
+        vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+        vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+
+        vec3 p0 = vec3(a0.xy,h.x);
+        vec3 p1 = vec3(a0.zw,h.y);
+        vec3 p2 = vec3(a1.xy,h.z);
+        vec3 p3 = vec3(a1.zw,h.w);
+
+        //Normalise gradients
+        vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+        p0 *= norm.x;
+        p1 *= norm.y;
+        p2 *= norm.z;
+        p3 *= norm.w;
+
+        // Mix final noise value
+        vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+        m = m * m;
+        return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
+                                      dot(p2,x2), dot(p3,x3) ) );
+      }
+
       void main() {
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vWorldDirection = normalize(worldPosition.xyz - cameraPosition);
-        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        vUv = uv;
+
+        // Create more natural cloud formations using 3D simplex noise
+        float scale = 0.05;
+        float timeScale = 0.0002;
+
+        // Layer multiple noise functions for more natural look
+        float noise = snoise(vec3(position.x * scale, position.y * scale, time * timeScale)) * 0.5;
+        noise += snoise(vec3(position.x * scale * 2.0, position.y * scale * 2.0, time * timeScale * 1.2)) * 0.25;
+        noise += snoise(vec3(position.x * scale * 4.0, position.y * scale * 4.0, time * timeScale * 1.4)) * 0.125;
+
+        // Normalize noise to 0-1 range
+        noise = noise * 0.5 + 0.5;
+        vNoise = noise;
+
+        // Apply displacement
+        vec3 newPosition = position + normal * noise * 4.0;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
       }
     `,
     fragmentShader: `
-      #ifdef GL_ES
-      precision mediump float;
-      #endif
-
-      uniform float time;
-      varying vec3 vWorldDirection;
-
-      // Simple hash without domain clamp
-      float hash(vec3 p) {
-        p = fract(p * 0.3183099 + 0.1);
-        p *= 17.0;
-        return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-      }
-
-      // 3D noise without domain clamp
-      float noise3(vec3 p) {
-        vec3 i = floor(p);
-        vec3 f = fract(p);
-        vec3 u = f * f * (3.0 - 2.0 * f);
-
-        return mix(
-          mix(
-            mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), u.x),
-            mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), u.x), u.y),
-          mix(
-            mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), u.x),
-            mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), u.x), u.y), u.z);
-      }
-
-      float fbm(vec3 p) {
-        float value = 0.0;
-        float amp = 0.5;
-        for (int i = 0; i < 5; i++) {
-          value += amp * noise3(p);
-          p *= 2.0;
-          amp *= 0.5;
-        }
-        return value;
-      }
+      varying float vNoise;
 
       void main() {
-        vec3 dir = normalize(vWorldDirection);
-        float t = mod(time * 0.001, 100.0);
+        vec3 baseColor = vec3(0.95, 0.95, 0.95);
+        vec3 darkColor = vec3(0.7, 0.7, 0.75);
 
-        // Circular motion for smooth looping animation
-        vec3 motion = vec3(
-          sin(t * 0.2) * 0.5,
-          cos(t * 0.15) * 0.4,
-          sin(t * 0.1 + 1.0) * 0.3
-        );
+        vec3 color = mix(darkColor, baseColor, vNoise);
 
-        vec3 samplePos = dir * 4.0 + motion;
+        // Softer edges for clouds
+        float alpha = smoothstep(0.2, 0.8, vNoise);
+        alpha *= 0.8; // Slightly more transparent overall
 
-        float clouds = fbm(samplePos);
-        clouds = smoothstep(0.35, 0.75, clouds);
-
-        vec3 baseColor = vec3(0.04, 0.07, 0.2);
-        vec3 cloudColor = vec3(0.85, 0.9, 1.0);
-
-        float horizon = clamp(dir.y, 0.0, 1.0);
-        float atmosphere = 1.0 - horizon;
-
-        vec3 color = mix(baseColor, cloudColor, clouds);
-        color = mix(color, vec3(0.7, 0.8, 1.0), atmosphere * 0.1);
-
-        gl_FragColor = vec4(color, 1.0);
+        gl_FragColor = vec4(color, alpha);
       }
     `
   });
 </script>
 
-<a-scene renderer="precision: mediump;" background="color: black">
-  <a-entity id="skyboxshader" 
-            geometry="primitive: sphere; radius: 5000; segmentsWidth: 64; segmentsHeight: 32"
-            material="shader: seamless-clouds-3d; side: back;"
-            scale="-1 1 1">
-  </a-entity>
-  
-  <a-entity id="mountains" 
+<a-scene>
+
+  <!-- Sky background -->
+  <a-sky color="#223344"></a-sky>
+
+  <!-- Animated clouds layer (behind mountains) -->
+  <a-plane
+    position="0 10 -5"
+    rotation="-90 0 0"
+    width="500"
+    height="500"
+    segments-width="256"
+    segments-height="256"
+    material="shader: simple-cloud; side: double; transparent: true; depthWrite: false">
+  </a-plane>
+
+  <!-- Mountains layer (closest to user, highest z-index) -->
+  <a-entity id="mountains"
             geometry="primitive: sphere; radius: 4900; segmentsWidth: 32; segmentsHeight: 16"
             material="src: mountains.png; transparent: true; alphaTest: 0.1; side: back; depthTest: false;"
-            renderOrder="1"
+            renderOrder="2"
             scale="-1 1 1">
   </a-entity>
-  
+ 
+  <!-- Camera -->
   <a-entity camera position="0 1.6 0" look-controls wasd-controls></a-entity>
 </a-scene>
 
