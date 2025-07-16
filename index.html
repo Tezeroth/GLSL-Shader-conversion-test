@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -20,17 +20,6 @@
       varying vec2 vUv;
       varying float vNoise;
 
-      //
-      // Description : Array and textureless GLSL 2D/3D/4D simplex
-      // noise functions.
-      // Author : Ian McEwan, Ashima Arts.
-      // Maintainer : ijm
-      // Lastmod : 20110822 (ijm)
-      // License : Copyright (C) 2011 Ashima Arts. All rights reserved.
-      // Distributed under the MIT License.
-      // https://github.com/ashima/webgl-noise
-      //
-
       vec3 mod289(vec3 x) {
         return x - floor(x * (1.0 / 289.0)) * 289.0;
       }
@@ -51,11 +40,9 @@
         const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
         const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
 
-        // First corner
         vec3 i  = floor(v + dot(v, C.yyy) );
         vec3 x0 =   v - i + dot(i, C.xxx) ;
 
-        // Other corners
         vec3 g = step(x0.yzx, x0.xyz);
         vec3 l = 1.0 - g;
         vec3 i1 = min( g.xyz, l.zxy );
@@ -65,16 +52,13 @@
         vec3 x2 = x0 - i2 + C.yyy;
         vec3 x3 = x0 - D.yyy;
 
-        // Permutations
         i = mod289(i);
         vec4 p = permute( permute( permute(
                  i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
                + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
                + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
 
-        // Gradients: 7x7 points over a square, mapped onto an octahedron.
-        // The ring size 17*17 = 289 is close to a multiple of 49 (49*6 = 294)
-        float n_ = 0.142857142857; // 1.0/7.0
+        float n_ = 0.142857142857;
         vec3  ns = n_ * D.wyz - D.xzx;
 
         vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
@@ -101,14 +85,12 @@
         vec3 p2 = vec3(a1.xy,h.z);
         vec3 p3 = vec3(a1.zw,h.w);
 
-        //Normalise gradients
         vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
         p0 *= norm.x;
         p1 *= norm.y;
         p2 *= norm.z;
         p3 *= norm.w;
 
-        // Mix final noise value
         vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
         m = m * m;
         return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
@@ -118,20 +100,16 @@
       void main() {
         vUv = uv;
 
-        // Create more natural cloud formations using 3D simplex noise
         float scale = 0.05;
         float timeScale = 0.0002;
 
-        // Layer multiple noise functions for more natural look
         float noise = snoise(vec3(position.x * scale, position.y * scale, time * timeScale)) * 0.5;
         noise += snoise(vec3(position.x * scale * 2.0, position.y * scale * 2.0, time * timeScale * 1.2)) * 0.25;
         noise += snoise(vec3(position.x * scale * 4.0, position.y * scale * 4.0, time * timeScale * 1.4)) * 0.125;
 
-        // Normalize noise to 0-1 range
         noise = noise * 0.5 + 0.5;
         vNoise = noise;
 
-        // Apply displacement
         vec3 newPosition = position + normal * noise * 4.0;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
       }
@@ -145,16 +123,14 @@
 
         vec3 color = mix(darkColor, baseColor, vNoise);
 
-        // Softer edges for clouds
         float alpha = smoothstep(0.2, 0.8, vNoise);
-        alpha *= 0.8; // Slightly more transparent overall
+        alpha *= 0.8;
 
         gl_FragColor = vec4(color, alpha);
       }
     `
   });
 
-  // Component to make skybox elements follow camera's X/Z position
   AFRAME.registerComponent('follow-camera-xz', {
     init: function () {
       this.camera = document.querySelector('[camera]');
@@ -164,12 +140,56 @@
         const cameraPos = this.camera.getAttribute('position');
         const currentPos = this.el.getAttribute('position');
 
-        // Update only X and Z coordinates, keep Y unchanged
         this.el.setAttribute('position', {
           x: cameraPos.x,
           y: currentPos.y,
           z: cameraPos.z
         });
+      }
+    }
+  });
+
+  // Snow particle system component
+  AFRAME.registerComponent('snow', {
+    schema: {
+      count: {type: 'int', default: 3000},
+      area: {type: 'vec3', default: {x: 200, y: 100, z: 200}},
+      speed: {type: 'number', default: 0.1}
+    },
+    init: function () {
+      const el = this.el;
+      this.particles = [];
+
+      for(let i = 0; i < this.data.count; i++) {
+        const particle = document.createElement('a-sphere');
+        particle.setAttribute('radius', 0.1);
+        particle.setAttribute('color', '#FFF');
+        particle.setAttribute('opacity', 0.8);
+        particle.setAttribute('transparent', true);
+
+        // Random start position within area
+        particle.object3D.position.set(
+          (Math.random() - 0.5) * this.data.area.x,
+          Math.random() * this.data.area.y,
+          (Math.random() - 0.5) * this.data.area.z
+        );
+
+        el.appendChild(particle);
+        this.particles.push(particle);
+      }
+    },
+    tick: function (time, delta) {
+      const area = this.data.area;
+      const speed = this.data.speed;
+      for(let particle of this.particles) {
+        let pos = particle.object3D.position;
+        pos.y -= speed * (delta / 16);  // Normalize delta (16ms ~ 60fps)
+
+        if(pos.y < 0) {
+          pos.y = area.y;
+          pos.x = (Math.random() - 0.5) * area.x;
+          pos.z = (Math.random() - 0.5) * area.z;
+        }
       }
     }
   });
@@ -182,7 +202,7 @@
 
   <!-- Animated clouds layer (behind mountains) -->
   <a-plane
-    position="0 10 -5"
+    position="0 15 -5"
     rotation="-90 0 0"
     width="500"
     height="500"
@@ -194,16 +214,30 @@
 
   <!-- Mountains layer (closest to user, highest z-index) -->
   <a-entity id="mountains"
-            geometry="primitive: sphere; radius: 4900; segmentsWidth: 32; segmentsHeight: 16"
-            material="src: mountains.png; transparent: true; alphaTest: 0.1; side: back; depthTest: false;"
+            geometry="primitive: sphere; radius: 100; segmentsWidth: 32; segmentsHeight: 16"
+            material="src: mountains.png; side: back; transparent: true; alphaTest: 0.1; depthTest: true; depthWrite: true;"
             renderOrder="2"
-            scale="-1 1 1"
             follow-camera-xz>
   </a-entity>
- 
+
+  <!-- GLTF model at world origin, render order 3 to draw on top -->
+  <a-entity 
+    gltf-model="mountainmodel.glb" 
+    scale="150 125 150" 
+    position="0 -25 0" 
+    renderOrder="3"
+    transparent="false"
+  >
+  </a-entity>
+
+  <!-- Snow particle system, parented to camera so snow moves with user -->
+  <a-entity snow follow-camera-xz></a-entity>
+
   <!-- Camera -->
-  <a-entity camera position="0 1.6 0" look-controls wasd-controls></a-entity>
+  <a-entity camera="near: 0.2; far: 100000" position="0 1.6 0" look-controls wasd-controls></a-entity>
+
 </a-scene>
+
 
 </body>
 </html>
