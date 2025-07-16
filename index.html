@@ -102,25 +102,22 @@
           // Use normalized world direction for proper spherical sampling
           vec3 dir = normalize(vWorldDirection);
           
-          float scale = 1.0;  // Reduced from 2.0 for VR
-          float speed = 0.0001;
+          float scale = 1.0;
           
-          // Sample noise directly from world direction (no UV distortion)
-          vec3 pos = dir * scale + vec3(
-            time * speed,
-            time * speed * 0.5,
-            time * speed * 0.8
-          );
+          // Remove time-based animation temporarily to test
+          vec3 pos = dir * scale;
+          // vec3 pos = dir * scale + vec3(
+          //   time * speed,
+          //   time * speed * 0.5,
+          //   time * speed * 0.8
+          // );
 
           float clouds = fbm3(pos);
-          
-          // Much more permissive cloud threshold
-          clouds = smoothstep(0.1, 0.5, clouds);  // Was 0.2, 0.6
+          clouds = smoothstep(0.1, 0.5, clouds);
 
           vec3 baseColor = vec3(0.05, 0.15, 0.4);
           vec3 cloudColor = vec3(0.9, 0.95, 1.0);
           
-          // Keep atmospheric perspective but reduce intensity
           float horizon = abs(dir.y);
           float atmosphere = 1.0 - smoothstep(0.0, 0.5, horizon);
           vec3 atmosphereColor = vec3(0.7, 0.8, 1.0);
