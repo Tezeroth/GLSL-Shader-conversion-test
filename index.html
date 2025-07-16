@@ -103,7 +103,7 @@
           vec3 dir = normalize(vWorldDirection);
           
           float scale = 2.0;
-          float speed = 0.0003;
+          float speed = 0.0001;
           
           // Sample noise directly from world direction (no UV distortion)
           vec3 pos = dir * scale + vec3(
@@ -114,21 +114,22 @@
 
           float clouds = fbm3(pos);
           
-          // Add distance-based density falloff for realism
-          float horizon = abs(dir.y);
-          clouds *= smoothstep(0.0, 0.3, horizon);
+          // Remove horizon falloff - let clouds extend to equator
+          // float horizon = abs(dir.y);
+          // clouds *= smoothstep(0.0, 0.3, horizon);
           
           clouds = smoothstep(0.4, 0.7, clouds);
 
           vec3 baseColor = vec3(0.05, 0.15, 0.4);
           vec3 cloudColor = vec3(0.9, 0.95, 1.0);
           
-          // Add atmospheric perspective
+          // Keep atmospheric perspective but reduce intensity
+          float horizon = abs(dir.y);
           float atmosphere = 1.0 - smoothstep(0.0, 0.5, horizon);
           vec3 atmosphereColor = vec3(0.7, 0.8, 1.0);
           
           vec3 color = mix(baseColor, cloudColor, clouds);
-          color = mix(color, atmosphereColor, atmosphere * 0.3);
+          color = mix(color, atmosphereColor, atmosphere * 0.1);
           
           gl_FragColor = vec4(color, 1.0);
         }
@@ -137,10 +138,18 @@
   </script>
 
   <a-scene renderer="precision: mediump;" background="color: black">
-    <a-entity geometry="primitive: sphere; radius: 5000; segmentsWidth: 64; segmentsHeight: 32"
+    <!-- Procedural clouds sphere (background) -->
+    <a-entity id="skyboxshader" geometry="primitive: sphere; radius: 5000; segmentsWidth: 64; segmentsHeight: 32"
               material="shader: seamless-clouds-3d; side: back;"
               scale="-1 1 1">
     </a-entity>
+    
+    <!-- Mountain silhouette sphere (foreground) -->
+    <a-entity id="mountains" geometry="primitive: sphere; radius: 4999; segmentsWidth: 32; segmentsHeight: 16"
+              material="src: mountains.png; transparent: true; alphaTest: 0.1; side: back; depthTest: false; renderOrder: 1;"
+              scale="-1 1 1">
+    </a-entity>
+    
     <a-entity camera position="0 1.6 0" look-controls wasd-controls></a-entity>
   </a-scene>
 </body>
