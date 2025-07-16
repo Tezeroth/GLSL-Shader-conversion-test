@@ -22,9 +22,10 @@
         }
       `,
       fragmentShader: `
-        #ifdef GL_ES
-        precision mediump float;
-        #endif
+     #ifdef GL_ES
+    precision highp float;
+    #endif
+
 
         uniform float time;
         varying vec2 vUv;
