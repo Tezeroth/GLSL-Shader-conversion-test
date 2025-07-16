@@ -100,8 +100,8 @@
       void main() {
         vUv = uv;
 
-        float scale = 0.05;
-        float timeScale = 0.0002;
+        float scale = 0.025;
+        float timeScale = 0.000048;
 
         float noise = snoise(vec3(position.x * scale, position.y * scale, time * timeScale)) * 0.5;
         noise += snoise(vec3(position.x * scale * 2.0, position.y * scale * 2.0, time * timeScale * 1.2)) * 0.25;
@@ -214,7 +214,7 @@
 
   <!-- Animated clouds layer (behind mountains) -->
   <a-plane
-    position="0 35 -5"
+    position="0 45 -5"
     rotation="-90 0 0"
     width="500"
     height="500"
@@ -226,9 +226,10 @@
 
   <!-- Mountains layer (closest to user, highest z-index) -->
   <a-entity id="mountains"
-            geometry="primitive: sphere; radius: 200; segmentsWidth: 32; segmentsHeight: 16"
-            material="src: mountains.png; side: back; transparent: true; alphaTest: 0.1; depthTest: true; depthWrite: true;"
+            geometry="primitive: sphere; radius: 200; segmentsWidth: 32; segmentsHeight: 8"
+            material="src: mountains01.png; side: back; transparent: true; alphaTest: 0.1; depthTest: true; depthWrite: true;"
             renderOrder="2"
+            scale="1 0.6 1"
             follow-camera-xz>
   </a-entity>
 
