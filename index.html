@@ -149,22 +149,22 @@
     }
   });
 
-  // Snow particle system component
+     // Snow particle system component
   AFRAME.registerComponent('snow', {
     schema: {
-      count: {type: 'int', default: 3000},
+      count: {type: 'int', default: 2000},
       area: {type: 'vec3', default: {x: 200, y: 100, z: 200}},
-      speed: {type: 'number', default: 0.1}
+      speed: {type: 'number', default: 4}
     },
     init: function () {
       const el = this.el;
       this.particles = [];
 
-      for(let i = 0; i < this.data.count; i++) {
+      for (let i = 0; i < this.data.count; i++) {
         const particle = document.createElement('a-sphere');
-        particle.setAttribute('radius', 0.1);
+        particle.setAttribute('radius', 0.15 + Math.random() * 0.0001); // larger flakes
         particle.setAttribute('color', '#FFF');
-        particle.setAttribute('opacity', 0.8);
+        particle.setAttribute('opacity', 0.9); // heavier opacity
         particle.setAttribute('transparent', true);
 
         // Random start position within area
@@ -174,18 +174,28 @@
           (Math.random() - 0.5) * this.data.area.z
         );
 
+        // Random movement data per particle
+        particle.userData = {
+          speed: this.data.speed * (0.8 + Math.random() * 0.7), // faster descent
+          driftX: (Math.random() - 0.5) * 0.1, // stronger horizontal movement
+          driftZ: (Math.random() - 0.5) * 0.1
+        };
+
         el.appendChild(particle);
         this.particles.push(particle);
       }
     },
     tick: function (time, delta) {
       const area = this.data.area;
-      const speed = this.data.speed;
-      for(let particle of this.particles) {
-        let pos = particle.object3D.position;
-        pos.y -= speed * (delta / 16);  // Normalize delta (16ms ~ 60fps)
+      for (let particle of this.particles) {
+        const pos = particle.object3D.position;
+        const { speed, driftX, driftZ } = particle.userData;
 
-        if(pos.y < 0) {
+        pos.y -= speed * (delta / 1000); // real-time speed
+        pos.x += driftX * (delta / 1000);
+        pos.z += driftZ * (delta / 1000);
+
+        if (pos.y < 0) {
           pos.y = area.y;
           pos.x = (Math.random() - 0.5) * area.x;
           pos.z = (Math.random() - 0.5) * area.z;
@@ -195,6 +205,8 @@
   });
 </script>
 
+
+
 <a-scene>
 
   <!-- Sky background -->
@@ -202,7 +214,7 @@
 
   <!-- Animated clouds layer (behind mountains) -->
   <a-plane
-    position="0 15 -5"
+    position="0 35 -5"
     rotation="-90 0 0"
     width="500"
     height="500"
@@ -214,7 +226,7 @@
 
   <!-- Mountains layer (closest to user, highest z-index) -->
   <a-entity id="mountains"
-            geometry="primitive: sphere; radius: 100; segmentsWidth: 32; segmentsHeight: 16"
+            geometry="primitive: sphere; radius: 200; segmentsWidth: 32; segmentsHeight: 16"
             material="src: mountains.png; side: back; transparent: true; alphaTest: 0.1; depthTest: true; depthWrite: true;"
             renderOrder="2"
             follow-camera-xz>
@@ -230,11 +242,10 @@
   >
   </a-entity>
 
-  <!-- Snow particle system, parented to camera so snow moves with user -->
-  <a-entity snow follow-camera-xz></a-entity>
+<a-entity snow position="133.82 1.6 -21.26"></a-entity>
 
   <!-- Camera -->
-  <a-entity camera="near: 0.2; far: 100000" position="0 1.6 0" look-controls wasd-controls></a-entity>
+  <a-entity camera="near: 0.2; far: 100000" position="133.82 1.6 -21.26" rotation="11.230 385.87 0" look-controls wasd-controls></a-entity>
 
 </a-scene>
 
