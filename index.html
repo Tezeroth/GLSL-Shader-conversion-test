@@ -153,6 +153,26 @@
       }
     `
   });
+
+  // Component to make skybox elements follow camera's X/Z position
+  AFRAME.registerComponent('follow-camera-xz', {
+    init: function () {
+      this.camera = document.querySelector('[camera]');
+    },
+    tick: function () {
+      if (this.camera) {
+        const cameraPos = this.camera.getAttribute('position');
+        const currentPos = this.el.getAttribute('position');
+
+        // Update only X and Z coordinates, keep Y unchanged
+        this.el.setAttribute('position', {
+          x: cameraPos.x,
+          y: currentPos.y,
+          z: cameraPos.z
+        });
+      }
+    }
+  });
 </script>
 
 <a-scene>
@@ -168,7 +188,8 @@
     height="500"
     segments-width="256"
     segments-height="256"
-    material="shader: simple-cloud; side: double; transparent: true; depthWrite: false">
+    material="shader: simple-cloud; side: double; transparent: true; depthWrite: false"
+    follow-camera-xz>
   </a-plane>
 
   <!-- Mountains layer (closest to user, highest z-index) -->
@@ -176,7 +197,8 @@
             geometry="primitive: sphere; radius: 4900; segmentsWidth: 32; segmentsHeight: 16"
             material="src: mountains.png; transparent: true; alphaTest: 0.1; side: back; depthTest: false;"
             renderOrder="2"
-            scale="-1 1 1">
+            scale="-1 1 1"
+            follow-camera-xz>
   </a-entity>
  
   <!-- Camera -->
