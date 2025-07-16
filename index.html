@@ -30,14 +30,14 @@
       uniform float time;
       varying vec3 vWorldDirection;
 
-      // Quest-optimized hash
+      // Simple hash without domain clamp
       float hash(vec3 p) {
         p = fract(p * 0.3183099 + 0.1);
         p *= 17.0;
         return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
       }
 
-      // Quest-safe noise
+      // 3D noise without domain clamp
       float noise3(vec3 p) {
         vec3 i = floor(p);
         vec3 f = fract(p);
@@ -52,11 +52,10 @@
             mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), u.x), u.y), u.z);
       }
 
-      // Reduced iterations for Quest
       float fbm(vec3 p) {
         float value = 0.0;
         float amp = 0.5;
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 5; i++) {
           value += amp * noise3(p);
           p *= 2.0;
           amp *= 0.5;
@@ -66,23 +65,29 @@
 
       void main() {
         vec3 dir = normalize(vWorldDirection);
-        
-        // Quest-safe time wrapping
-        float t = mod(time * 0.0005, 50.0);
-        
-        // Simple linear motion
-        vec3 samplePos = dir * 1.5 + vec3(t, t * 0.7, t * 0.3);
+        float t = mod(time * 0.001, 100.0);
+
+        // Circular motion for smooth looping animation
+        vec3 motion = vec3(
+          sin(t * 0.2) * 0.5,
+          cos(t * 0.15) * 0.4,
+          sin(t * 0.1 + 1.0) * 0.3
+        );
+
+        vec3 samplePos = dir * 4.0 + motion;
 
         float clouds = fbm(samplePos);
-        
-        // Lower threshold for Quest
-        clouds = smoothstep(0.2, 0.6, clouds);
+        clouds = smoothstep(0.35, 0.75, clouds);
 
-        vec3 baseColor = vec3(0.1, 0.2, 0.4);
-        vec3 cloudColor = vec3(0.9, 0.95, 1.0);
+        vec3 baseColor = vec3(0.04, 0.07, 0.2);
+        vec3 cloudColor = vec3(0.85, 0.9, 1.0);
+
+        float horizon = clamp(dir.y, 0.0, 1.0);
+        float atmosphere = 1.0 - horizon;
 
         vec3 color = mix(baseColor, cloudColor, clouds);
-        
+        color = mix(color, vec3(0.7, 0.8, 1.0), atmosphere * 0.1);
+
         gl_FragColor = vec4(color, 1.0);
       }
     `
@@ -90,15 +95,16 @@
 </script>
 
 <a-scene renderer="precision: mediump;" background="color: black">
-  <!-- Procedural clouds sphere (background) -->
-  <a-entity id="skyboxshader" geometry="primitive: sphere; radius: 5000; segmentsWidth: 64; segmentsHeight: 32"
+  <a-entity id="skyboxshader" 
+            geometry="primitive: sphere; radius: 5000; segmentsWidth: 64; segmentsHeight: 32"
             material="shader: seamless-clouds-3d; side: back;"
             scale="-1 1 1">
   </a-entity>
   
-  <!-- Mountain silhouette sphere (foreground) -->
-  <a-entity id="mountains" geometry="primitive: sphere; radius: 4900; segmentsWidth: 32; segmentsHeight: 16"
-            material="src: mountains.png; transparent: true; alphaTest: 0.1; side: back; depthTest: false; renderOrder: 1;"
+  <a-entity id="mountains" 
+            geometry="primitive: sphere; radius: 4900; segmentsWidth: 32; segmentsHeight: 16"
+            material="src: mountains.png; transparent: true; alphaTest: 0.1; side: back; depthTest: false;"
+            renderOrder="1"
             scale="-1 1 1">
   </a-entity>
   
