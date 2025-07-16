@@ -2,77 +2,105 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Procedural Clouds - Fixed Orientation & Speed</title>
+  <title>3D Noise Seamless Procedural Clouds</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <style>html, body { margin: 0; height: 100%; overflow: hidden; }</style>
 </head>
 <body>
   <script>
-    AFRAME.registerShader('procedural-cloud', {
+    AFRAME.registerShader('seamless-clouds-3d', {
       schema: {
-        time: { type: 'time', is: 'uniform' },
-        resolution: { type: 'vec2', is: 'uniform', default: { x: 1, y: 1 } }
+        time: { type: 'time', is: 'uniform' }
       },
-      glslVersion: '100',
       vertexShader: `
-        varying vec2 vUv;
+        varying vec3 vWorldDirection;
         void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldDirection = normalize(worldPosition.xyz - cameraPosition);
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
         }
       `,
       fragmentShader: `
-     #ifdef GL_ES
-    precision highp float;
-    #endif
-
+        #ifdef GL_ES
+        precision highp float;
+        #endif
 
         uniform float time;
-        varying vec2 vUv;
+        varying vec3 vWorldDirection;
 
-        vec4 textureRND2D(vec2 uv){
-          uv = floor(fract(uv)*1e3);
-          float v = uv.x + uv.y * 1e3;
-          return fract(1e5 * sin(vec4(v*1e-2, (v+1.)*1e-2, (v+1e3)*1e-2, (v+1e3+1.)*1e-2)));
+        float hash3(vec3 p) {
+          p = fract(p * 0.3183099 + vec3(0.1, 0.1, 0.1));
+          p *= 17.0;
+          return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
         }
 
-        float noise(vec2 p) {
-          vec2 f = fract(p * 1e3);
-          vec4 r = textureRND2D(p);
-          f = f * f * (3.0 - 2.0 * f);
-          return mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);
+        float noise3(vec3 p) {
+          vec3 i = floor(p);
+          vec3 f = fract(p);
+          vec3 u = f * f * (3.0 - 2.0 * f);
+
+          float n000 = hash3(i + vec3(0.0, 0.0, 0.0));
+          float n100 = hash3(i + vec3(1.0, 0.0, 0.0));
+          float n010 = hash3(i + vec3(0.0, 1.0, 0.0));
+          float n110 = hash3(i + vec3(1.0, 1.0, 0.0));
+          float n001 = hash3(i + vec3(0.0, 0.0, 1.0));
+          float n101 = hash3(i + vec3(1.0, 0.0, 1.0));
+          float n011 = hash3(i + vec3(0.0, 1.0, 1.0));
+          float n111 = hash3(i + vec3(1.0, 1.0, 1.0));
+
+          float nx00 = mix(n000, n100, u.x);
+          float nx10 = mix(n010, n110, u.x);
+          float nx01 = mix(n001, n101, u.x);
+          float nx11 = mix(n011, n111, u.x);
+
+          float nxy0 = mix(nx00, nx10, u.y);
+          float nxy1 = mix(nx01, nx11, u.y);
+
+          return mix(nxy0, nxy1, u.z);
         }
 
-        float cloud(vec2 p) {
-          float v = 0.0;
-          v += noise(p * 1.0) * 0.5;
-          v += noise(p * 2.0) * 0.2;
-          v += noise(p * 4.0) * 0.125;
-          v += noise(p * 8.0) * 0.0625;
-          v += noise(p * 16.0) * 0.03125;
-          return v * v * v;
+        float fbm3(vec3 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          float frequency = 1.0;
+          for (int i=0; i<5; i++) {
+            value += amplitude * noise3(p * frequency);
+            frequency *= 2.0;
+            amplitude *= 0.5;
+          }
+          return value;
         }
 
         void main() {
-          vec2 uv = vUv;
+          vec3 dir = normalize(vWorldDirection);
 
-          vec2 p = uv * 0.05 + 0.5;
+          // Scale controls cloud detail
+          float scale = 2.0;
+          float speed = 0.001;
 
-          vec3 c = vec3(0.0, 0.0, 0.2);
-          c += vec3(0.6, 0.6, 0.8) * cloud(p * 0.3 + time * 0.0000001) * 0.6;
-          c.gbr += vec3(0.8, 0.8, 1.0) * cloud(p * 0.2 + time * 0.0000001) * 0.8;
-          c.grb += vec3(1.0, 1.0, 1.0) * cloud(p * 0.1 + time * 0.0000001) * 1.0;
+          // Animate by moving noise sample position over time
+          vec3 pos = dir * scale + vec3(time * speed, time * speed * 0.5, time * speed * 0.25);
 
-          gl_FragColor = vec4(c, 1.0);
+          float clouds = fbm3(pos);
+
+          vec3 baseColor = vec3(0.1, 0.2, 0.5);
+          vec3 cloudColor = vec3(1.0);
+
+          // Mix clouds with base sky color
+          vec3 color = mix(baseColor, cloudColor, clouds);
+
+          gl_FragColor = vec4(color, 1.0);
         }
       `
     });
   </script>
 
-  <a-scene background="black">
-    <a-sky shader="procedural-cloud" rotation="0 90 0"></a-sky>
+  <a-scene renderer="precision: highp;" background="color: black">
+    <a-entity geometry="primitive: sphere; radius: 5000; segmentsWidth: 128; segmentsHeight: 128"
+              material="shader: seamless-clouds-3d; side: back;"
+              scale="-1 1 1">
+    </a-entity>
     <a-entity camera position="0 1.6 0" look-controls wasd-controls></a-entity>
   </a-scene>
 </body>
 </html>
-
