@@ -114,8 +114,8 @@
 
           float clouds = fbm3(pos);
           
-          // Increase cloud density for VR
-          clouds = smoothstep(0.2, 0.6, clouds);  // Was 0.4, 0.7
+          // Much more permissive cloud threshold
+          clouds = smoothstep(0.1, 0.5, clouds);  // Was 0.2, 0.6
 
           vec3 baseColor = vec3(0.05, 0.15, 0.4);
           vec3 cloudColor = vec3(0.9, 0.95, 1.0);
