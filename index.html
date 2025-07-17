@@ -149,98 +149,72 @@
     }
   });
 
-  // NEW GPU-accelerated snow particle system
-  AFRAME.registerComponent('gpu-snow', {
+  AFRAME.registerComponent('snow-system', {
     schema: {
-      count: { type: 'int', default: 1500 },
-      area: { type: 'vec3', default: { x: 200, y: 100, z: 200 } },
-      speed: { type: 'number', default: 2.5 },
-      size: { type: 'number', default: 1}
+      count: { type: 'int', default: 1000 },
+      size: { type: 'number', default: 0.05 }, // size in world units
+      area: { type: 'vec3', default: { x: 20, y: 20, z: 20 } },
+      fallSpeed: { type: 'number', default: 0.5 },
     },
 
     init: function () {
-      const THREE = AFRAME.THREE;
+      const sceneEl = this.el.sceneEl;
       const data = this.data;
-
-      this.geometry = new THREE.BufferGeometry();
-      this.positions = new Float32Array(data.count * 3);
-      this.velocities = new Float32Array(data.count * 3);
+      const snowGeo = new THREE.BufferGeometry();
+      const positions = new Float32Array(data.count * 3);
+      const velocities = new Float32Array(data.count);
+      const area = data.area;
 
       for (let i = 0; i < data.count; i++) {
-        this.positions[i * 3] = (Math.random() - 0.5) * data.area.x;
-        this.positions[i * 3 + 1] = Math.random() * data.area.y;
-        this.positions[i * 3 + 2] = (Math.random() - 0.5) * data.area.z;
-
-        this.velocities[i * 3] = (Math.random() - 0.5) * 0.02;
-        this.velocities[i * 3 + 1] = -(data.speed * (0.5 + Math.random() * 0.5));
-        this.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
+        const i3 = i * 3;
+        positions[i3 + 0] = (Math.random() - 0.5) * area.x;
+        positions[i3 + 1] = Math.random() * area.y;
+        positions[i3 + 2] = (Math.random() - 0.5) * area.z;
+        velocities[i] = data.fallSpeed * (0.5 + Math.random());
       }
 
-      this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+      snowGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      snowGeo.setAttribute('velocity', new THREE.BufferAttribute(velocities, 1));
 
-      const vertexShader = `
-        varying float vAlpha;
-
-        uniform float size;
-
-        void main() {
-          vAlpha = 1.0;
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (300.0 / -mvPosition.z);
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `;
-
-      const fragmentShader = `
-        varying float vAlpha;
-
-        void main() {
-          float dist = distance(gl_PointCoord, vec2(0.5));
-          if (dist > 0.5) discard;
-
-          float alpha = smoothstep(0.5, 0.4, dist) * vAlpha;
-          gl_FragColor = vec4(1.0, 1.0, 1.0, alpha);
-        }
-      `;
-
-      this.material = new THREE.ShaderMaterial({
-        uniforms: { size: { value: data.size } },
-        vertexShader,
-        fragmentShader,
+      const snowMat = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: data.size,
+        sizeAttenuation: true,
         transparent: true,
+        opacity: 0.8,
         depthWrite: false,
-        blending: THREE.AdditiveBlending
       });
 
-      this.points = new THREE.Points(this.geometry, this.material);
-      this.el.setObject3D('mesh', this.points);
+      this.snowPoints = new THREE.Points(snowGeo, snowMat);
+      this.el.setObject3D('mesh', this.snowPoints);
     },
 
-    tick: function (time, delta) {
-      const positions = this.geometry.attributes.position.array;
-      const velocities = this.velocities;
-      const area = this.data.area;
+    tick: function (time, deltaTime) {
+      const positions = this.snowPoints.geometry.attributes.position.array;
+      const velocities = this.snowPoints.geometry.attributes.velocity.array;
       const count = this.data.count;
-      const deltaSeconds = delta / 1000;
+      const area = this.data.area;
+      const dt = deltaTime / 1000;
 
       for (let i = 0; i < count; i++) {
-        positions[i * 3] += velocities[i * 3] * deltaSeconds;
-        positions[i * 3 + 1] += velocities[i * 3 + 1] * deltaSeconds;
-        positions[i * 3 + 2] += velocities[i * 3 + 2] * deltaSeconds;
-
-     if (positions[i * 3 + 1] < -10) {  // or -20, depending on scene scale
-
-          positions[i * 3] = (Math.random() - 0.5) * area.x;
-          positions[i * 3 + 1] = area.y;
-          positions[i * 3 + 2] = (Math.random() - 0.5) * area.z;
-
-          velocities[i * 3] = (Math.random() - 0.5) * 0.02;
-          velocities[i * 3 + 1] = -(this.data.speed * (0.5 + Math.random() * 0.5));
-          velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
+        const i3 = i * 3;
+        positions[i3 + 1] -= velocities[i] * dt;
+        if (positions[i3 + 1] < 0) {
+          positions[i3 + 0] = (Math.random() - 0.5) * area.x;
+          positions[i3 + 1] = area.y;
+          positions[i3 + 2] = (Math.random() - 0.5) * area.z;
         }
       }
 
-      this.geometry.attributes.position.needsUpdate = true;
+      this.snowPoints.geometry.attributes.position.needsUpdate = true;
+
+      // Optional: lock snow position to camera/player position
+      const camPos = this.el.sceneEl.camera.el.getAttribute('position');
+      this.el.setAttribute('position', {
+        x: camPos.x,
+        y: 0,
+        z: camPos.z,
+      });
     }
   });
 </script>
@@ -281,8 +255,8 @@
   >
   </a-entity>
 
-  <!-- Replaced old snow system with new GPU snow -->
-  <a-entity gpu-snow position="0 10 0"></a-entity>
+  <!-- Use your custom snow system here -->
+  <a-entity snow-system></a-entity>
 
   <!-- Camera -->
   <a-entity camera="near: 0.2; far: 100000" position="0 0 0" rotation="0 0 0" look-controls wasd-controls></a-entity>
