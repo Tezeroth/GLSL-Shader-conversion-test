@@ -149,63 +149,101 @@
     }
   });
 
-     // Snow particle system component
-  AFRAME.registerComponent('snow', {
+  // NEW GPU-accelerated snow particle system
+  AFRAME.registerComponent('gpu-snow', {
     schema: {
-      count: {type: 'int', default: 2000},
-      area: {type: 'vec3', default: {x: 200, y: 100, z: 200}},
-      speed: {type: 'number', default: 4}
+      count: { type: 'int', default: 1500 },
+      area: { type: 'vec3', default: { x: 200, y: 100, z: 200 } },
+      speed: { type: 'number', default: 2.5 },
+      size: { type: 'number', default: 1}
     },
+
     init: function () {
-      const el = this.el;
-      this.particles = [];
+      const THREE = AFRAME.THREE;
+      const data = this.data;
 
-      for (let i = 0; i < this.data.count; i++) {
-        const particle = document.createElement('a-sphere');
-        particle.setAttribute('radius', 0.15 + Math.random() * 0.0001); // larger flakes
-        particle.setAttribute('color', '#FFF');
-        particle.setAttribute('opacity', 0.9); // heavier opacity
-        particle.setAttribute('transparent', true);
+      this.geometry = new THREE.BufferGeometry();
+      this.positions = new Float32Array(data.count * 3);
+      this.velocities = new Float32Array(data.count * 3);
 
-        // Random start position within area
-        particle.object3D.position.set(
-          (Math.random() - 0.5) * this.data.area.x,
-          Math.random() * this.data.area.y,
-          (Math.random() - 0.5) * this.data.area.z
-        );
+      for (let i = 0; i < data.count; i++) {
+        this.positions[i * 3] = (Math.random() - 0.5) * data.area.x;
+        this.positions[i * 3 + 1] = Math.random() * data.area.y;
+        this.positions[i * 3 + 2] = (Math.random() - 0.5) * data.area.z;
 
-        // Random movement data per particle
-        particle.userData = {
-          speed: this.data.speed * (0.8 + Math.random() * 0.7), // faster descent
-          driftX: (Math.random() - 0.5) * 0.1, // stronger horizontal movement
-          driftZ: (Math.random() - 0.5) * 0.1
-        };
-
-        el.appendChild(particle);
-        this.particles.push(particle);
+        this.velocities[i * 3] = (Math.random() - 0.5) * 0.02;
+        this.velocities[i * 3 + 1] = -(data.speed * (0.5 + Math.random() * 0.5));
+        this.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
       }
+
+      this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+
+      const vertexShader = `
+        varying float vAlpha;
+
+        uniform float size;
+
+        void main() {
+          vAlpha = 1.0;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (300.0 / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `;
+
+      const fragmentShader = `
+        varying float vAlpha;
+
+        void main() {
+          float dist = distance(gl_PointCoord, vec2(0.5));
+          if (dist > 0.5) discard;
+
+          float alpha = smoothstep(0.5, 0.4, dist) * vAlpha;
+          gl_FragColor = vec4(1.0, 1.0, 1.0, alpha);
+        }
+      `;
+
+      this.material = new THREE.ShaderMaterial({
+        uniforms: { size: { value: data.size } },
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+
+      this.points = new THREE.Points(this.geometry, this.material);
+      this.el.setObject3D('mesh', this.points);
     },
+
     tick: function (time, delta) {
+      const positions = this.geometry.attributes.position.array;
+      const velocities = this.velocities;
       const area = this.data.area;
-      for (let particle of this.particles) {
-        const pos = particle.object3D.position;
-        const { speed, driftX, driftZ } = particle.userData;
+      const count = this.data.count;
+      const deltaSeconds = delta / 1000;
 
-        pos.y -= speed * (delta / 1000); // real-time speed
-        pos.x += driftX * (delta / 1000);
-        pos.z += driftZ * (delta / 1000);
+      for (let i = 0; i < count; i++) {
+        positions[i * 3] += velocities[i * 3] * deltaSeconds;
+        positions[i * 3 + 1] += velocities[i * 3 + 1] * deltaSeconds;
+        positions[i * 3 + 2] += velocities[i * 3 + 2] * deltaSeconds;
 
-        if (pos.y < 0) {
-          pos.y = area.y;
-          pos.x = (Math.random() - 0.5) * area.x;
-          pos.z = (Math.random() - 0.5) * area.z;
+     if (positions[i * 3 + 1] < -10) {  // or -20, depending on scene scale
+
+          positions[i * 3] = (Math.random() - 0.5) * area.x;
+          positions[i * 3 + 1] = area.y;
+          positions[i * 3 + 2] = (Math.random() - 0.5) * area.z;
+
+          velocities[i * 3] = (Math.random() - 0.5) * 0.02;
+          velocities[i * 3 + 1] = -(this.data.speed * (0.5 + Math.random() * 0.5));
+          velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
         }
       }
+
+      this.geometry.attributes.position.needsUpdate = true;
     }
   });
 </script>
-
-
 
 <a-scene>
 
@@ -243,13 +281,13 @@
   >
   </a-entity>
 
-<a-entity snow position="0 0 0"></a-entity>
+  <!-- Replaced old snow system with new GPU snow -->
+  <a-entity gpu-snow position="0 10 0"></a-entity>
 
   <!-- Camera -->
   <a-entity camera="near: 0.2; far: 100000" position="0 0 0" rotation="0 0 0" look-controls wasd-controls></a-entity>
 
 </a-scene>
-
 
 </body>
 </html>
