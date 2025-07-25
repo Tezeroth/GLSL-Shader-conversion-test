@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <title>Seamless 3D Clouds Skybox - No Seams</title>
-  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+  <script src="https://ideaspacevr.github.io/aframe-particle-system-component/examples/snow/"></script>
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; }
   </style>
@@ -148,75 +149,6 @@
       }
     }
   });
-
-  AFRAME.registerComponent('snow-system', {
-    schema: {
-      count: { type: 'int', default: 1000 },
-      size: { type: 'number', default: 0.05 }, // size in world units
-      area: { type: 'vec3', default: { x: 20, y: 20, z: 20 } },
-      fallSpeed: { type: 'number', default: 0.5 },
-    },
-
-    init: function () {
-      const sceneEl = this.el.sceneEl;
-      const data = this.data;
-      const snowGeo = new THREE.BufferGeometry();
-      const positions = new Float32Array(data.count * 3);
-      const velocities = new Float32Array(data.count);
-      const area = data.area;
-
-      for (let i = 0; i < data.count; i++) {
-        const i3 = i * 3;
-        positions[i3 + 0] = (Math.random() - 0.5) * area.x;
-        positions[i3 + 1] = Math.random() * area.y;
-        positions[i3 + 2] = (Math.random() - 0.5) * area.z;
-        velocities[i] = data.fallSpeed * (0.5 + Math.random());
-      }
-
-      snowGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      snowGeo.setAttribute('velocity', new THREE.BufferAttribute(velocities, 1));
-
-      const snowMat = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: data.size,
-        sizeAttenuation: true,
-        transparent: true,
-        opacity: 0.8,
-        depthWrite: false,
-      });
-
-      this.snowPoints = new THREE.Points(snowGeo, snowMat);
-      this.el.setObject3D('mesh', this.snowPoints);
-    },
-
-    tick: function (time, deltaTime) {
-      const positions = this.snowPoints.geometry.attributes.position.array;
-      const velocities = this.snowPoints.geometry.attributes.velocity.array;
-      const count = this.data.count;
-      const area = this.data.area;
-      const dt = deltaTime / 1000;
-
-      for (let i = 0; i < count; i++) {
-        const i3 = i * 3;
-        positions[i3 + 1] -= velocities[i] * dt;
-        if (positions[i3 + 1] < 0) {
-          positions[i3 + 0] = (Math.random() - 0.5) * area.x;
-          positions[i3 + 1] = area.y;
-          positions[i3 + 2] = (Math.random() - 0.5) * area.z;
-        }
-      }
-
-      this.snowPoints.geometry.attributes.position.needsUpdate = true;
-
-      // Optional: lock snow position to camera/player position
-      const camPos = this.el.sceneEl.camera.el.getAttribute('position');
-      this.el.setAttribute('position', {
-        x: camPos.x,
-        y: 0,
-        z: camPos.z,
-      });
-    }
-  });
 </script>
 
 <a-scene>
@@ -255,8 +187,8 @@
   >
   </a-entity>
 
-  <!-- Use your custom snow system here -->
-  <a-entity snow-system></a-entity>
+  <!-- Particle system snow via CDN -->
+   <a-entity particle-system="preset: snow; particleCount: 1000; size: 0.1; sizeRandomness: 0.5; color: #FFFFFF; velocityValue: 0 -1 0; velocitySpread: 0.5 0.5 0.5;" position="0 5 0"></a-entity>
 
   <!-- Camera -->
   <a-entity camera="near: 0.2; far: 100000" position="0 0 0" rotation="0 0 0" look-controls wasd-controls></a-entity>

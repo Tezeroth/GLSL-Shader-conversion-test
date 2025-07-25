@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "C:/Users/user/Downloads/grassy_landscape_with_snow/textures"
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "GLSL-Shader-conversion-test"
+	}
+}
